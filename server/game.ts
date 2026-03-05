@@ -1,13 +1,11 @@
-import { WebSocketServer, WebSocket } from "ws";
+import { Server as SocketIOServer } from "socket.io";
 import { Server } from "http";
-import { RoomState, Player } from "@shared/schema";
+import { RoomState, Player, Message } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { ws as wsSchema } from "@shared/routes";
 
-// In-memory data
 const rooms = new Map<string, RoomState>();
-// Map ws connection to { roomId, playerId }
-const clientConnections = new Map<WebSocket, { roomId: string, playerId: string }>();
+const socketToPlayer = new Map<string, { roomId: string; playerId: string }>();
 
 const truths = [
   "What is your biggest fear?",
@@ -49,160 +47,146 @@ function generateRoomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-function broadcastRoomUpdate(roomId: string) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-
-  const payload = JSON.stringify({
-    type: "roomUpdate",
-    payload: room
+export function setupSocketIO(httpServer: Server) {
+  const io = new SocketIOServer(httpServer, {
+    path: "/socket.io",
+    cors: { origin: "*" }
   });
 
-  for (const [client, info] of clientConnections.entries()) {
-    if (info.roomId === roomId && client.readyState === WebSocket.OPEN) {
-      // Send with ID appended so client knows who they are implicitly? 
-      // Actually it's easier to just send the room state. The client can identify itself by `playerName`.
-      client.send(payload);
-    }
-  }
-}
-
-export function setupWebSockets(httpServer: Server) {
-  const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
-
-  wss.on("connection", (ws) => {
-    ws.on("message", (data) => {
+  io.on("connection", (socket) => {
+    socket.on("createRoom", (payload) => {
       try {
-        const message = JSON.parse(data.toString());
-        const { type, payload } = message;
-
-        if (type === "createRoom") {
-          const parsed = wsSchema.send.createRoom.parse(payload);
-          const roomId = generateRoomCode();
-          const playerId = randomUUID();
-          const newPlayer: Player = { id: playerId, name: parsed.playerName };
-          
-          const newRoom: RoomState = {
-            roomId,
-            hostId: playerId,
-            players: [newPlayer],
-            gameState: "lobby",
-            currentTurnPlayerId: null,
-            currentAction: null,
-            currentQuestion: null
-          };
-          
-          rooms.set(roomId, newRoom);
-          clientConnections.set(ws, { roomId, playerId });
-          
-          broadcastRoomUpdate(roomId);
-        }
-        else if (type === "joinRoom") {
-          const parsed = wsSchema.send.joinRoom.parse(payload);
-          const room = rooms.get(parsed.roomId.toUpperCase());
-          
-          if (!room) {
-            ws.send(JSON.stringify({ type: "error", payload: { message: "Room not found" } }));
-            return;
-          }
-
-          if (room.gameState !== "lobby") {
-             ws.send(JSON.stringify({ type: "error", payload: { message: "Game already started" } }));
-             return;
-          }
-
-          // Check for duplicate name
-          if (room.players.some(p => p.name === parsed.playerName)) {
-             ws.send(JSON.stringify({ type: "error", payload: { message: "Name already taken in this room" } }));
-             return;
-          }
-
-          const playerId = randomUUID();
-          const newPlayer: Player = { id: playerId, name: parsed.playerName };
-          
-          room.players.push(newPlayer);
-          clientConnections.set(ws, { roomId: room.roomId, playerId });
-          
-          broadcastRoomUpdate(room.roomId);
-        }
-        else if (type === "startGame") {
-          const info = clientConnections.get(ws);
-          if (!info) return;
-          const room = rooms.get(info.roomId);
-          if (!room || room.hostId !== info.playerId) return;
-
-          room.gameState = "playing";
-          room.currentTurnPlayerId = room.players[Math.floor(Math.random() * room.players.length)].id;
-          room.currentAction = null;
-          room.currentQuestion = null;
-          
-          broadcastRoomUpdate(room.roomId);
-        }
-        else if (type === "nextTurn") {
-          const info = clientConnections.get(ws);
-          if (!info) return;
-          const room = rooms.get(info.roomId);
-          if (!room || room.hostId !== info.playerId) return;
-
-          room.currentTurnPlayerId = room.players[Math.floor(Math.random() * room.players.length)].id;
-          room.currentAction = null;
-          room.currentQuestion = null;
-          
-          broadcastRoomUpdate(room.roomId);
-        }
-        else if (type === "chooseAction") {
-          const info = clientConnections.get(ws);
-          if (!info) return;
-          const room = rooms.get(info.roomId);
-          if (!room || room.currentTurnPlayerId !== info.playerId) return;
-
-          const parsed = wsSchema.send.chooseAction.parse(payload);
-          room.currentAction = parsed.action;
-          
-          if (parsed.action === "truth") {
-             room.currentQuestion = truths[Math.floor(Math.random() * truths.length)];
-          } else {
-             room.currentQuestion = dares[Math.floor(Math.random() * dares.length)];
-          }
-          
-          broadcastRoomUpdate(room.roomId);
-        }
-        else if (type === "leaveRoom") {
-          handleLeave(ws);
-        }
+        const parsed = wsSchema.send.createRoom.parse(payload);
+        const roomId = generateRoomCode();
+        const playerId = randomUUID();
+        const player: Player = { id: playerId, name: parsed.playerName, isOnline: true, isVideoEnabled: false, isAudioEnabled: false };
         
-      } catch (err) {
-        console.error("WS Message Error", err);
-        ws.send(JSON.stringify({ type: "error", payload: { message: "Invalid request" } }));
+        const room: RoomState = {
+          roomId,
+          hostId: playerId,
+          players: [player],
+          messages: [],
+          gameState: "lobby",
+          currentTurnPlayerId: null,
+          currentAction: null,
+          currentQuestion: null,
+          turnStartTime: null,
+          turnDuration: 30
+        };
+        
+        rooms.set(roomId, room);
+        socketToPlayer.set(socket.id, { roomId, playerId });
+        socket.join(roomId);
+        socket.emit("roomUpdate", room);
+      } catch (e) {
+        socket.emit("error", { message: "Invalid room creation" });
       }
     });
 
-    ws.on("close", () => {
-      handleLeave(ws);
-    });
-  });
+    socket.on("joinRoom", (payload) => {
+      try {
+        const parsed = wsSchema.send.joinRoom.parse(payload);
+        const room = rooms.get(parsed.roomId.toUpperCase());
+        if (!room) return socket.emit("error", { message: "Room not found" });
+        if (room.players.length >= 15) return socket.emit("error", { message: "Room full" });
 
-  function handleLeave(ws: WebSocket) {
-    const info = clientConnections.get(ws);
-    if (info) {
-      clientConnections.delete(ws);
+        const playerId = randomUUID();
+        const player: Player = { id: playerId, name: parsed.playerName, isOnline: true, isVideoEnabled: false, isAudioEnabled: false };
+        room.players.push(player);
+        socketToPlayer.set(socket.id, { roomId: room.roomId, playerId });
+        socket.join(room.roomId);
+        io.to(room.roomId).emit("roomUpdate", room);
+      } catch (e) {
+        socket.emit("error", { message: "Invalid join request" });
+      }
+    });
+
+    socket.on("startGame", () => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room || room.hostId !== info.playerId) return;
+
+      room.gameState = "playing";
+      selectNextPlayer(room);
+      io.to(room.roomId).emit("roomUpdate", room);
+    });
+
+    socket.on("chooseAction", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room || room.currentTurnPlayerId !== info.playerId) return;
+
+      const parsed = wsSchema.send.chooseAction.parse(payload);
+      room.currentAction = parsed.action;
+      room.currentQuestion = parsed.action === "truth" 
+        ? truths[Math.floor(Math.random() * truths.length)]
+        : dares[Math.floor(Math.random() * dares.length)];
+      
+      io.to(room.roomId).emit("roomUpdate", room);
+    });
+
+    socket.on("sendMessage", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room) return;
+
+      const player = room.players.find(p => p.id === info.playerId);
+      if (!player) return;
+
+      const message: Message = {
+        id: randomUUID(),
+        senderId: player.id,
+        senderName: player.name,
+        content: payload.content,
+        timestamp: Date.now()
+      };
+      room.messages.push(message);
+      io.to(room.roomId).emit("newMessage", message);
+    });
+
+    socket.on("signal", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const { targetId, signal } = payload;
+      
+      // Find the target's socket
+      for (const [sId, sInfo] of socketToPlayer.entries()) {
+        if (sInfo.playerId === targetId && sInfo.roomId === info.roomId) {
+          io.to(sId).emit("signal", { fromId: info.playerId, signal });
+          break;
+        }
+      }
+    });
+
+    socket.on("disconnect", () => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      
       const room = rooms.get(info.roomId);
       if (room) {
         room.players = room.players.filter(p => p.id !== info.playerId);
         if (room.players.length === 0) {
           rooms.delete(info.roomId);
         } else {
-          if (room.hostId === info.playerId) {
-            room.hostId = room.players[0].id; // Reassign host
-          }
-          if (room.currentTurnPlayerId === info.playerId && room.gameState === "playing") {
-            room.currentTurnPlayerId = room.players[Math.floor(Math.random() * room.players.length)].id;
-            room.currentAction = null;
-            room.currentQuestion = null;
-          }
-          broadcastRoomUpdate(info.roomId);
+          if (room.hostId === info.playerId) room.hostId = room.players[0].id;
+          if (room.currentTurnPlayerId === info.playerId) selectNextPlayer(room);
+          io.to(room.roomId).emit("roomUpdate", room);
         }
       }
-    }
-  }
+      socketToPlayer.delete(socket.id);
+    });
+  });
+}
+
+function selectNextPlayer(room: RoomState) {
+  if (room.players.length === 0) return;
+  const currentIndex = room.players.findIndex(p => p.id === room.currentTurnPlayerId);
+  const nextIndex = (currentIndex + 1) % room.players.length;
+  room.currentTurnPlayerId = room.players[nextIndex].id;
+  room.currentAction = null;
+  room.currentQuestion = null;
+  room.turnStartTime = Date.now();
 }

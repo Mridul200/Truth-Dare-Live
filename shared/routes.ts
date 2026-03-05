@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { roomStateSchema } from './schema';
+import { roomStateSchema, messageSchema } from './schema';
 
 export const api = {
   health: {
@@ -23,18 +23,26 @@ export function buildUrl(path: string, params?: Record<string, string | number>)
   return url;
 }
 
-// WebSocket Event Payloads Contract
+// Socket.io Event Payloads Contract
 export const ws = {
   send: {
     createRoom: z.object({ playerName: z.string() }),
     joinRoom: z.object({ roomId: z.string(), playerName: z.string() }),
     startGame: z.object({}),
     nextTurn: z.object({}),
+    skipTurn: z.object({}),
+    kickPlayer: z.object({ playerId: z.string() }),
+    endGame: z.object({}),
     chooseAction: z.object({ action: z.enum(["truth", "dare"]) }),
+    sendMessage: z.object({ content: z.string() }),
+    toggleMedia: z.object({ video: z.boolean().optional(), audio: z.boolean().optional() }),
     leaveRoom: z.object({}),
+    signal: z.object({ targetId: z.string(), signal: z.any() }),
   },
   receive: {
     roomUpdate: roomStateSchema,
-    error: z.object({ message: z.string() })
+    newMessage: messageSchema,
+    error: z.object({ message: z.string() }),
+    signal: z.object({ fromId: z.string(), signal: z.any() }),
   }
 };
