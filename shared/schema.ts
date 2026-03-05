@@ -1,18 +1,28 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { pgTable, serial } from "drizzle-orm/pg-core";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// Dummy table to satisfy the database setup requirements if needed
+export const dummyTable = pgTable("dummy", {
+  id: serial("id").primaryKey(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const playerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type Player = z.infer<typeof playerSchema>;
+
+export const gameStateSchema = z.enum(["lobby", "playing"]);
+
+export const roomStateSchema = z.object({
+  roomId: z.string(),
+  hostId: z.string(),
+  players: z.array(playerSchema),
+  gameState: gameStateSchema,
+  currentTurnPlayerId: z.string().nullable(),
+  currentAction: z.enum(["truth", "dare"]).nullable(),
+  currentQuestion: z.string().nullable(),
+});
+
+export type RoomState = z.infer<typeof roomStateSchema>;
