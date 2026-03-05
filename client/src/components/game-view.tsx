@@ -8,9 +8,39 @@ import confetti from "canvas-confetti";
 import { useEffect } from "react";
 
 export function GameView() {
-  const { roomState, myPlayerId, isHost, chooseAction, nextTurn } = useGame();
+  const { roomState, myPlayerId, isHost, chooseAction, nextTurn, endGame } = useGame();
 
   if (!roomState) return null;
+
+  if (roomState.gameState === "ended") {
+    return (
+      <div className="w-full max-w-2xl mx-auto py-12 px-4">
+        <Card className="glass-card p-12 text-center border-0 overflow-hidden relative">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h2 className="text-5xl font-display font-bold text-gradient mb-6">Game Over!</h2>
+            <p className="text-xl text-muted-foreground mb-12">
+              Thanks for playing! We'd love to hear your thoughts.
+            </p>
+            
+            <Button 
+              size="lg"
+              className="w-full max-w-md h-16 rounded-2xl text-xl font-bold shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+              onClick={() => window.open("https://forms.google.com", "_blank")}
+            >
+              Share Your Feedback
+            </Button>
+            
+            <p className="mt-8 text-sm text-muted-foreground">
+              Your feedback helps us make the game even better!
+            </p>
+          </motion.div>
+        </Card>
+      </div>
+    );
+  }
 
   const currentPlayer = roomState.players.find(p => p.id === roomState.currentTurnPlayerId);
   const isMyTurn = myPlayerId === roomState.currentTurnPlayerId;
@@ -118,13 +148,23 @@ export function GameView() {
                 </p>
 
                 {isHost && (
-                  <Button 
-                    size="lg"
-                    className="mt-12 rounded-2xl px-10 py-6 text-lg font-semibold shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all"
-                    onClick={nextTurn}
-                  >
-                    Next Player <ArrowRight className="w-5 h-5 ml-2" />
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-4 mt-12 w-full justify-center">
+                    <Button 
+                      size="lg"
+                      className="rounded-2xl px-10 py-6 text-lg font-semibold shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all"
+                      onClick={nextTurn}
+                    >
+                      Next Player <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                    <Button 
+                      size="lg"
+                      variant="outline"
+                      className="rounded-2xl px-10 py-6 text-lg font-semibold border-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all"
+                      onClick={endGame}
+                    >
+                      End Game
+                    </Button>
+                  </div>
                 )}
               </motion.div>
             )}

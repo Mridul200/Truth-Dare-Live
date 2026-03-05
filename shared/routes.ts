@@ -29,6 +29,7 @@ export const ws = {
     createRoom: z.object({ playerName: z.string() }),
     joinRoom: z.object({ roomId: z.string(), playerName: z.string() }),
     startGame: z.object({}),
+    endGame: z.object({}),
     nextTurn: z.object({}),
     skipTurn: z.object({}),
     kickPlayer: z.object({ playerId: z.string() }),

@@ -161,6 +161,16 @@ export function setupSocketIO(httpServer: Server) {
       }
     });
 
+    socket.on("endGame", () => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room || room.hostId !== info.playerId) return;
+
+      room.gameState = "ended";
+      io.to(room.roomId).emit("roomUpdate", room);
+    });
+
     socket.on("disconnect", () => {
       const info = socketToPlayer.get(socket.id);
       if (!info) return;

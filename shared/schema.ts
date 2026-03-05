@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { pgTable, serial } from "drizzle-orm/pg-core";
 
+// Dummy table to satisfy the database setup requirements if needed
 export const dummyTable = pgTable("dummy", {
   id: serial("id").primaryKey(),
 });
@@ -25,7 +26,7 @@ export const messageSchema = z.object({
 
 export type Message = z.infer<typeof messageSchema>;
 
-export const gameStateSchema = z.enum(["lobby", "playing"]);
+export const gameStateSchema = z.enum(["lobby", "playing", "ended"]);
 
 export const roomStateSchema = z.object({
   roomId: z.string(),

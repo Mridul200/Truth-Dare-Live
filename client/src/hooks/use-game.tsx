@@ -13,6 +13,7 @@ interface GameContextType {
   createRoom: (name: string) => void;
   joinRoom: (roomId: string, name: string) => void;
   startGame: () => void;
+  endGame: () => void;
   chooseAction: (action: "truth" | "dare") => void;
   nextTurn: () => void;
   leaveRoom: () => void;
@@ -92,6 +93,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   };
 
   const startGame = () => sendEvent("startGame", {});
+  const endGame = () => sendEvent("endGame", {});
   const chooseAction = (action: "truth" | "dare") => sendEvent("chooseAction", { action });
   const nextTurn = () => sendEvent("nextTurn", {});
   
@@ -115,6 +117,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         createRoom,
         joinRoom,
         startGame,
+        endGame,
         chooseAction,
         nextTurn,
         leaveRoom,
