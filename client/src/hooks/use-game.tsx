@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { type RoomState } from "@shared/schema";
 import { ws as wsConfig } from "@shared/routes";
 import { useToast } from "./use-toast";
+import { io, Socket } from "socket.io-client";
 
 interface GameContextType {
   roomState: RoomState | null;
@@ -25,7 +26,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [playerName, setPlayerName] = useState<string>(() => sessionStorage.getItem("playerName") || "");
   const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -33,50 +34,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [playerName]);
 
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const socket = io({
+      path: "/socket.io",
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
     
-    const connect = () => {
-      const socket = new WebSocket(wsUrl);
-      wsRef.current = socket;
+    socketRef.current = socket;
 
-      socket.onopen = () => setIsConnected(true);
-      
-      socket.onclose = () => {
-        setIsConnected(false);
-        setTimeout(connect, 3000); // Reconnect loop
-      };
+    socket.on("connect", () => setIsConnected(true));
+    socket.on("disconnect", () => setIsConnected(false));
+    
+    socket.on("roomUpdate", (payload) => {
+      try {
+        const parsed = wsConfig.receive.roomUpdate.parse(payload);
+        setRoomState(parsed);
+      } catch (err) {
+        console.error("Failed to parse roomUpdate", err);
+      }
+    });
 
-      socket.onmessage = (event) => {
-        try {
-          const { type, payload } = JSON.parse(event.data);
-          
-          if (type === "roomUpdate") {
-            const parsed = wsConfig.receive.roomUpdate.parse(payload);
-            setRoomState(parsed);
-          } else if (type === "error") {
-            toast({
-              title: "Error",
-              description: payload.message || "An error occurred",
-              variant: "destructive",
-            });
-          }
-        } catch (err) {
-          console.error("Failed to parse WS message", err);
-        }
-      };
-    };
+    socket.on("newMessage", (payload) => {
+      // Handle new message if needed, though roomUpdate might cover it
+    });
 
-    connect();
+    socket.on("error", (payload) => {
+      toast({
+        title: "Error",
+        description: payload.message || "An error occurred",
+        variant: "destructive",
+      });
+    });
 
     return () => {
-      wsRef.current?.close();
+      socket.disconnect();
     };
   }, [toast]);
 
   const sendEvent = (type: string, payload: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, payload }));
+    if (socketRef.current?.connected) {
+      socketRef.current.emit(type, payload);
     } else {
       toast({ title: "Disconnected", description: "Connecting to server...", variant: "destructive" });
     }
