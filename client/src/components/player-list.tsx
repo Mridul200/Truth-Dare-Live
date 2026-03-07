@@ -14,21 +14,31 @@ export function PlayerList({ roomState, myPlayerId }: { roomState: RoomState, my
           const isHost = player.id === roomState.hostId;
           const isMe = player.id === myPlayerId;
           const isTurn = player.id === roomState.currentTurnPlayerId;
+          
+          const avatarColors = [
+            'bg-purple-100 text-purple-600',
+            'bg-pink-100 text-pink-600',
+            'bg-blue-100 text-blue-600',
+            'bg-orange-100 text-orange-600',
+            'bg-emerald-100 text-emerald-600',
+          ];
+          const colorClass = avatarColors[idx % avatarColors.length];
 
           return (
             <motion.div
               key={player.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.05, y: -2 }}
               transition={{ delay: idx * 0.05 }}
               className={`
                 relative flex items-center gap-3 p-3 rounded-2xl border transition-all duration-300
-                ${isTurn ? 'bg-primary/5 border-primary/20 shadow-md shadow-primary/5' : 'bg-white/50 border-white/40 shadow-sm'}
-                ${isMe ? 'ring-2 ring-primary/10' : ''}
+                ${isTurn ? 'bg-white border-primary shadow-lg shadow-primary/10' : 'bg-white/50 border-white/40 shadow-sm'}
+                ${isMe ? 'ring-2 ring-primary/20' : ''}
               `}
             >
               <Avatar className={`w-10 h-10 ${isTurn ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}>
-                <AvatarFallback className="bg-primary/10 text-primary font-bold font-display text-sm">
+                <AvatarFallback className={`${colorClass} font-bold font-display text-sm`}>
                   {player.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>

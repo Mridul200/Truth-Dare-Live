@@ -9,7 +9,9 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="relative min-h-screen w-full font-sans text-foreground overflow-hidden">
-      <div className="animated-bg" />
+      <div className="animated-bg">
+        <div className="animated-bg-extra" />
+      </div>
       
       <header className="absolute top-0 w-full p-6 flex justify-between items-center z-50">
         <div className="flex items-center gap-3">

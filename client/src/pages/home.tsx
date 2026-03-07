@@ -39,12 +39,13 @@ export default function Home() {
     >
       <div className="text-center mb-10">
         <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          whileHover={{ scale: 1.1, rotate: 10 }}
           transition={{ type: "spring", bounce: 0.5 }}
-          className="w-20 h-20 bg-primary text-white rounded-3xl mx-auto flex items-center justify-center shadow-2xl shadow-primary/30 mb-6"
+          className="w-24 h-24 bg-gradient-to-tr from-purple-600 to-pink-500 text-white rounded-[2rem] mx-auto flex items-center justify-center shadow-2xl shadow-purple-500/40 mb-8"
         >
-          <Sparkles className="w-10 h-10" />
+          <Sparkles className="w-12 h-12" />
         </motion.div>
         <h1 className="text-5xl font-display font-bold text-gradient mb-4">
           Truth or Dare
@@ -72,7 +73,7 @@ export default function Home() {
           <div className="pt-4 space-y-4">
             <Button
               size="lg"
-              className="w-full h-14 rounded-2xl text-lg font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+              className="w-full h-14 rounded-2xl text-lg font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:-translate-y-1 active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 border-0 transition-all"
               onClick={handleCreate}
               disabled={!name.trim()}
             >
