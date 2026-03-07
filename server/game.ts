@@ -50,10 +50,15 @@ function generateRoomCode() {
 export function setupSocketIO(httpServer: Server) {
   const io = new SocketIOServer(httpServer, {
     path: "/socket.io",
-    cors: { origin: "*" }
+    cors: { origin: "*" },
+    transports: ["websocket", "polling"],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   io.on("connection", (socket) => {
+    console.log("New client connected:", socket.id);
     socket.on("createRoom", (payload) => {
       try {
         const parsed = wsSchema.send.createRoom.parse(payload);

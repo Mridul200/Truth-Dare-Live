@@ -36,14 +36,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const socket = io({
       path: "/socket.io",
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      transports: ["websocket", "polling"],
+      timeout: 20000,
     });
     
     socketRef.current = socket;
 
-    socket.on("connect", () => setIsConnected(true));
-    socket.on("disconnect", () => setIsConnected(false));
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+      setIsConnected(true);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+      setIsConnected(false);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
+      setIsConnected(false);
+    });
     
     socket.on("roomUpdate", (payload) => {
       try {
