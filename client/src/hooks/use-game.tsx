@@ -18,6 +18,8 @@ interface GameContextType {
   chooseAction: (action: "truth" | "dare") => void;
   nextTurn: () => void;
   leaveRoom: () => void;
+  toggleMedia: (video?: boolean, audio?: boolean) => void;
+  sendSignal: (targetId: string, signal: any) => void;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -113,6 +115,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setRoomState(null);
   };
 
+  const toggleMedia = (video?: boolean, audio?: boolean) => {
+    sendEvent("toggleMedia", { video, audio });
+  };
+
+  const sendSignal = (targetId: string, signal: any) => {
+    sendEvent("signal", { targetId, signal });
+  };
+
   const myPlayerId = roomState?.players.find((p) => p.name === playerName)?.id || null;
   const isHost = roomState?.hostId === myPlayerId && myPlayerId !== null;
 
@@ -132,6 +142,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         chooseAction,
         nextTurn,
         leaveRoom,
+        toggleMedia,
+        sendSignal,
       }}
     >
       {children}

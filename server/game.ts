@@ -152,6 +152,21 @@ export function setupSocketIO(httpServer: Server) {
       io.to(room.roomId).emit("newMessage", message);
     });
 
+    socket.on("toggleMedia", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room) return;
+
+      const player = room.players.find(p => p.id === info.playerId);
+      if (!player) return;
+
+      if (payload.video !== undefined) player.isVideoEnabled = payload.video;
+      if (payload.audio !== undefined) player.isAudioEnabled = payload.audio;
+
+      io.to(room.roomId).emit("roomUpdate", room);
+    });
+
     socket.on("signal", (payload) => {
       const info = socketToPlayer.get(socket.id);
       if (!info) return;

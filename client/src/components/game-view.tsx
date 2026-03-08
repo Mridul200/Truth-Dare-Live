@@ -3,12 +3,49 @@ import { useGame } from "@/hooks/use-game";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PlayerList } from "./player-list";
-import { ArrowRight, Sparkles, UserCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, UserCircle2, Mic, MicOff, Video, VideoOff } from "lucide-react";
 import confetti from "canvas-confetti";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { VideoGrid } from "./video-grid";
 
 export function GameView() {
-  const { roomState, myPlayerId, isHost, chooseAction, nextTurn, endGame } = useGame();
+  const { roomState, myPlayerId, isHost, chooseAction, nextTurn, endGame, toggleMedia } = useGame();
+  const [audioOn, setAudioOn] = useState(false);
+  const [videoOn, setVideoOn] = useState(false);
+  const [videoStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+
+  const handleToggleAudio = async () => {
+    if (!audioOn) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        setLocalStream(stream);
+        setAudioOn(true);
+      } catch (err) {
+        console.error("Failed to access microphone:", err);
+      }
+    } else {
+      localStream?.getAudioTracks().forEach(t => t.stop());
+      setAudioOn(false);
+    }
+    toggleMedia(videoOn, !audioOn);
+  };
+
+  const handleToggleVideo = async () => {
+    if (!videoOn) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioOn, video: true });
+        setLocalStream(stream);
+        setVideoOn(true);
+      } catch (err) {
+        console.error("Failed to access camera:", err);
+      }
+    } else {
+      localStream?.getVideoTracks().forEach(t => t.stop());
+      setVideoOn(false);
+    }
+    toggleMedia(!videoOn, audioOn);
+  };
 
   if (!roomState) return null;
 
@@ -59,7 +96,25 @@ export function GameView() {
 
   return (
     <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 items-center">
-      <div className="w-full flex justify-end">
+      <div className="w-full flex justify-between items-center gap-3">
+        <div className="flex gap-2">
+          <Button
+            size="icon"
+            variant={audioOn ? "default" : "outline"}
+            className="rounded-full"
+            onClick={handleToggleAudio}
+          >
+            {audioOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+          </Button>
+          <Button
+            size="icon"
+            variant={videoOn ? "default" : "outline"}
+            className="rounded-full"
+            onClick={handleToggleVideo}
+          >
+            {videoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+          </Button>
+        </div>
         {isHost && (
           <Button 
             variant="outline" 
@@ -70,6 +125,17 @@ export function GameView() {
           </Button>
         )}
       </div>
+
+      {(localStream || videoStreams.size > 0) && (
+        <Card className="glass-card p-4 border-0 w-full">
+          <VideoGrid
+            localStream={localStream}
+            remoteStreams={videoStreams}
+            playerMap={new Map(roomState.players.map(p => [p.id, p.name]))}
+            myPlayerId={myPlayerId}
+          />
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 w-full">
         {/* Main Play Area */}
