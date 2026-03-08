@@ -20,6 +20,8 @@ interface GameContextType {
   leaveRoom: () => void;
   toggleMedia: (video?: boolean, audio?: boolean) => void;
   sendSignal: (targetId: string, signal: any) => void;
+  spinBottle: () => void;
+  askQuestion: (action: "truth" | "dare", question: string) => void;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -123,6 +125,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     sendEvent("signal", { targetId, signal });
   };
 
+  const spinBottle = () => {
+    sendEvent("spinBottle", {});
+  };
+
+  const askQuestion = (action: "truth" | "dare", question: string) => {
+    sendEvent("askQuestion", { action, question });
+  };
+
   const myPlayerId = roomState?.players.find((p) => p.name === playerName)?.id || null;
   const isHost = roomState?.hostId === myPlayerId && myPlayerId !== null;
 
@@ -144,6 +154,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leaveRoom,
         toggleMedia,
         sendSignal,
+        spinBottle,
+        askQuestion,
       }}
     >
       {children}

@@ -3,17 +3,20 @@ import { useGame } from "@/hooks/use-game";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PlayerList } from "./player-list";
-import { ArrowRight, Sparkles, UserCircle2, Mic, MicOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useEffect, useState } from "react";
 import { VideoGrid } from "./video-grid";
+import { CircularPlayers } from "./circular-players";
+import { Input } from "@/components/ui/input";
 
 export function GameView() {
-  const { roomState, myPlayerId, isHost, chooseAction, nextTurn, endGame, toggleMedia } = useGame();
+  const { roomState, myPlayerId, isHost, spinBottle, endGame, toggleMedia, askQuestion } = useGame();
   const [audioOn, setAudioOn] = useState(false);
   const [videoOn, setVideoOn] = useState(false);
   const [videoStreams] = useState<Map<string, MediaStream>>(new Map());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [questionText, setQuestionText] = useState("");
 
   const handleToggleAudio = async () => {
     if (!audioOn) {
@@ -45,6 +48,13 @@ export function GameView() {
       setVideoOn(false);
     }
     toggleMedia(!videoOn, audioOn);
+  };
+
+  const handleAskQuestion = (action: "truth" | "dare") => {
+    if (questionText.trim()) {
+      askQuestion(action, questionText);
+      setQuestionText("");
+    }
   };
 
   if (!roomState) return null;
@@ -95,7 +105,7 @@ export function GameView() {
   }, [roomState.currentQuestion, roomState.currentAction]);
 
   return (
-    <div className="w-full max-w-4xl mx-auto flex flex-col gap-6 items-center">
+    <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 items-center">
       <div className="w-full flex justify-between items-center gap-3">
         <div className="flex gap-2">
           <Button
@@ -115,15 +125,19 @@ export function GameView() {
             {videoOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
           </Button>
         </div>
-        {isHost && (
-          <Button 
-            variant="outline" 
-            className="bg-white/80 backdrop-blur-sm border-primary/20 hover:bg-primary/10 text-primary font-semibold rounded-xl"
-            onClick={nextTurn}
-          >
-            Skip Turn <ArrowRight className="w-4 h-4 ml-2" />
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          className="bg-white/80 backdrop-blur-sm border-primary/20 hover:bg-primary/10 text-primary font-semibold rounded-xl"
+          onClick={spinBottle}
+        >
+          Spin Bottle
+        </Button>
+        <Button 
+          variant="destructive"
+          onClick={endGame}
+        >
+          End Game
+        </Button>
       </div>
 
       {(localStream || videoStreams.size > 0) && (
@@ -137,55 +151,56 @@ export function GameView() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8 w-full">
-        {/* Main Play Area */}
-        <Card className="glass-card p-8 sm:p-12 border-0 min-h-[500px] flex flex-col items-center justify-center text-center relative overflow-hidden">
+      <Card className="glass-card p-8 border-0 w-full">
+        <CircularPlayers 
+          roomState={roomState}
+          myPlayerId={myPlayerId}
+          isSpinning={roomState.bottleSpinning}
+          onSpinComplete={() => {}}
+        />
+      </Card>
+
+      <Card className="glass-card p-8 sm:p-12 border-0 w-full flex flex-col items-center justify-center text-center relative overflow-hidden">
           
           <AnimatePresence mode="wait">
-            {!roomState.currentAction ? (
+            {!roomState.currentQuestion ? (
               <motion.div
-                key="choosing"
+                key="asking"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className="flex flex-col items-center w-full"
+                className="flex flex-col items-center w-full gap-6"
               >
-                <div className="mb-12">
-                  <motion.div 
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    className="inline-flex items-center justify-center p-4 bg-primary/5 rounded-full mb-6"
-                  >
-                    <UserCircle2 className="w-12 h-12 text-primary" />
-                  </motion.div>
-                  <h2 className="text-4xl sm:text-5xl font-display font-bold text-gradient mb-4">
-                    {isMyTurn ? "It's your turn!" : `${currentPlayer?.name}'s turn`}
-                  </h2>
-                  <p className="text-xl text-muted-foreground">
-                    {isMyTurn ? "Choose your fate wisely..." : "Waiting for them to choose..."}
-                  </p>
-                </div>
+                <h2 className="text-4xl sm:text-5xl font-display font-bold text-gradient mb-4">
+                  {roomState.questionAskerPlayerId === myPlayerId 
+                    ? "Ask a Question!" 
+                    : `Waiting for ${roomState.players.find(p => p.id === roomState.questionAskerPlayerId)?.name || "player"} to ask...`}
+                </h2>
 
-                {isMyTurn ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-lg">
-                    <Button 
-                      className="truth-gradient text-white h-32 rounded-3xl text-3xl font-display font-bold hover:scale-105 hover:shadow-2xl transition-all duration-300 border-0"
-                      onClick={() => chooseAction("truth")}
-                    >
-                      TRUTH
-                    </Button>
-                    <Button 
-                      className="dare-gradient text-white h-32 rounded-3xl text-3xl font-display font-bold hover:scale-105 hover:shadow-2xl transition-all duration-300 border-0"
-                      onClick={() => chooseAction("dare")}
-                    >
-                      DARE
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex gap-4 items-center justify-center mt-8">
-                    <div className="w-3 h-3 bg-primary/40 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-3 h-3 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-3 h-3 bg-primary/80 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                {roomState.questionAskerPlayerId === myPlayerId && (
+                  <div className="w-full max-w-lg flex flex-col gap-4">
+                    <Input
+                      placeholder="Type your question..."
+                      value={questionText}
+                      onChange={(e) => setQuestionText(e.target.value)}
+                      className="h-12 rounded-2xl"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Button 
+                        className="truth-gradient text-white h-16 rounded-2xl text-2xl font-display font-bold"
+                        onClick={() => handleAskQuestion("truth")}
+                        disabled={!questionText.trim()}
+                      >
+                        TRUTH
+                      </Button>
+                      <Button 
+                        className="dare-gradient text-white h-16 rounded-2xl text-2xl font-display font-bold"
+                        onClick={() => handleAskQuestion("dare")}
+                        disabled={!questionText.trim()}
+                      >
+                        DARE
+                      </Button>
+                    </div>
                   </div>
                 )}
               </motion.div>
@@ -208,43 +223,14 @@ export function GameView() {
                   "{roomState.currentQuestion}"
                 </h3>
 
-                <p className="text-lg text-muted-foreground font-medium flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
-                  {currentPlayer?.name} is on the spot!
+                <p className="text-lg text-muted-foreground font-medium">
+                  <strong>{roomState.players.find(p => p.id === roomState.currentTurnPlayerId)?.name}</strong> is answering!
                 </p>
-
-                {isHost && (
-                  <div className="flex flex-col sm:flex-row gap-4 mt-12 w-full justify-center">
-                    <Button 
-                      size="lg"
-                      className="rounded-2xl px-10 py-6 text-lg font-semibold shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all"
-                      onClick={nextTurn}
-                    >
-                      Next Player <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                    <Button 
-                      size="lg"
-                      variant="outline"
-                      className="rounded-2xl px-10 py-6 text-lg font-semibold border-2 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 transition-all"
-                      onClick={endGame}
-                    >
-                      End Game
-                    </Button>
-                  </div>
-                )}
               </motion.div>
             )}
           </AnimatePresence>
 
         </Card>
-
-        {/* Sidebar */}
-        <div className="w-full flex flex-col gap-6">
-          <Card className="glass-card p-6 border-0">
-            <PlayerList roomState={roomState} myPlayerId={myPlayerId} />
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }

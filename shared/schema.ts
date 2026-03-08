@@ -35,10 +35,12 @@ export const roomStateSchema = z.object({
   messages: z.array(messageSchema),
   gameState: gameStateSchema,
   currentTurnPlayerId: z.string().nullable(),
+  questionAskerPlayerId: z.string().nullable(),
   currentAction: z.enum(["truth", "dare"]).nullable(),
   currentQuestion: z.string().nullable(),
   turnStartTime: z.number().nullable(),
   turnDuration: z.number().default(30),
+  bottleSpinning: z.boolean().default(false),
 });
 
 export type RoomState = z.infer<typeof roomStateSchema>;

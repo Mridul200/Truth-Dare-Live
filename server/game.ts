@@ -7,42 +7,6 @@ import { ws as wsSchema } from "@shared/routes";
 const rooms = new Map<string, RoomState>();
 const socketToPlayer = new Map<string, { roomId: string; playerId: string }>();
 
-const truths = [
-  "What is your biggest fear?",
-  "What is the most embarrassing thing you've ever done?",
-  "Have you ever lied to get out of trouble?",
-  "What's the worst date you've ever been on?",
-  "If you could be invisible for a day, what would you do?",
-  "What's a secret you've never told anyone?",
-  "What is your worst habit?",
-  "Who is your secret crush?",
-  "What is the most childish thing you still do?",
-  "What is the weirdest dream you've ever had?",
-  "Have you ever broken the law?",
-  "What's the most trouble you've been in at school?",
-  "What's your most embarrassing nickname?",
-  "If you had to trade lives with someone in this room, who would it be?",
-  "What's the grossest food you've ever eaten?"
-];
-
-const dares = [
-  "Do 10 pushups.",
-  "Let the group look through your phone's photo gallery for 1 minute.",
-  "Sing the chorus of your favorite song.",
-  "Do your best impression of someone in the room.",
-  "Talk in a funny accent for the next 3 rounds.",
-  "Let someone draw on your face with a pen.",
-  "Eat a spoonful of a condiment chosen by the group.",
-  "Do a silly dance for 30 seconds.",
-  "Post an embarrassing photo on social media.",
-  "Call a random contact and sing 'Happy Birthday' to them.",
-  "Let the group text someone from your phone.",
-  "Hold your breath for as long as you can.",
-  "Act like a monkey until your next turn.",
-  "Wear your clothes backward for the rest of the game.",
-  "Try to juggle 3 items."
-];
-
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -113,22 +77,47 @@ export function setupSocketIO(httpServer: Server) {
       if (!room || room.hostId !== info.playerId) return;
 
       room.gameState = "playing";
+      room.bottleSpinning = true;
       selectNextPlayer(room);
       io.to(room.roomId).emit("roomUpdate", room);
+      setTimeout(() => {
+        if (room) {
+          room.bottleSpinning = false;
+          room.questionAskerPlayerId = getRandomPlayer(room, room.currentTurnPlayerId);
+          io.to(room.roomId).emit("roomUpdate", room);
+        }
+      }, 3000);
     });
 
-    socket.on("chooseAction", (payload) => {
+    socket.on("spinBottle", () => {
       const info = socketToPlayer.get(socket.id);
       if (!info) return;
       const room = rooms.get(info.roomId);
-      if (!room || room.currentTurnPlayerId !== info.playerId) return;
+      if (!room) return;
 
-      const parsed = wsSchema.send.chooseAction.parse(payload);
+      room.bottleSpinning = true;
+      selectNextPlayer(room);
+      io.to(room.roomId).emit("roomUpdate", room);
+      setTimeout(() => {
+        if (room) {
+          room.bottleSpinning = false;
+          room.questionAskerPlayerId = getRandomPlayer(room, room.currentTurnPlayerId);
+          room.currentAction = null;
+          room.currentQuestion = null;
+          io.to(room.roomId).emit("roomUpdate", room);
+        }
+      }, 3000);
+    });
+
+    socket.on("askQuestion", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room || room.questionAskerPlayerId !== info.playerId) return;
+
+      const parsed = wsSchema.send.askQuestion.parse(payload);
       room.currentAction = parsed.action;
-      room.currentQuestion = parsed.action === "truth" 
-        ? truths[Math.floor(Math.random() * truths.length)]
-        : dares[Math.floor(Math.random() * dares.length)];
-      
+      room.currentQuestion = parsed.question;
       io.to(room.roomId).emit("roomUpdate", room);
     });
 
@@ -216,7 +205,11 @@ function selectNextPlayer(room: RoomState) {
   const currentIndex = room.players.findIndex(p => p.id === room.currentTurnPlayerId);
   const nextIndex = (currentIndex + 1) % room.players.length;
   room.currentTurnPlayerId = room.players[nextIndex].id;
-  room.currentAction = null;
-  room.currentQuestion = null;
   room.turnStartTime = Date.now();
+}
+
+function getRandomPlayer(room: RoomState, excludeId?: string | null): string | null {
+  const eligible = room.players.filter(p => p.id !== excludeId);
+  if (eligible.length === 0) return null;
+  return eligible[Math.floor(Math.random() * eligible.length)].id;
 }
