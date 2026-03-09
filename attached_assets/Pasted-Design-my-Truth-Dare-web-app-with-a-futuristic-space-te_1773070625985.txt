@@ -1,0 +1,72 @@
+Design my Truth & Dare web app with a futuristic space-tech theme inspired by the “MridulVerse” brand. The interface should feel modern, fun, and slightly gaming-inspired, using glowing neon colors and smooth animations.
+
+🎨 Color Theme
+
+Use a dark galaxy style background with deep navy/black (#0B0F2A).
+Combine this with neon gradient accents:
+
+Purple #8A2BE2
+
+Electric Blue #00C2FF
+
+Neon Pink #FF2E9F
+
+Add soft glowing effects, gradients, and subtle stars or galaxy elements to create a futuristic vibe.
+
+🧩 UI Design
+
+Use bold modern typography for titles and headings.
+
+Buttons should have neon gradient colors with glowing hover effects.
+
+Cards and sections should have rounded corners and soft neon outlines.
+
+Add smooth transitions and hover animations.
+
+Layout should be clean, minimal, and mobile friendly.
+
+🎮 Game Description Section
+
+Create a fun and engaging description section on the homepage to introduce the game.
+
+Section Title:
+“The Ultimate Truth & Dare Experience”
+
+Description Text:
+
+Turn every hangout into pure chaos and laughter with the ultimate Truth & Dare game.
+Challenge your friends with hilarious dares, reveal surprising truths, and watch everyone panic when it’s their turn.
+
+Whether you're at a party, sleepover, or just bored with friends, this game guarantees unforgettable moments, crazy challenges, and secrets that might change friendships forever.
+
+Tap. Choose. Laugh. Repeat.
+
+Add fun icons, cards, or animated elements to highlight features like:
+
+😆 Funny Truth Questions
+
+🔥 Crazy Dares
+
+🎉 Perfect for Parties
+
+👥 Play with Friends
+
+🚀 Developer Splash Screen
+
+When the app opens:
+
+1️⃣ Show a dark galaxy background with glowing stars.
+2️⃣ A neon planet with a glowing ring appears in the center.
+3️⃣ The text “MridulVerse” fades in with a purple → blue gradient glow.
+4️⃣ A small rocket flies around the planet ring as a short animation.
+5️⃣ Below the logo show the tagline:
+
+“Apps From Another Universe.”
+
+6️⃣ At the bottom include a small credit:
+
+Created by Mridul Mani Tripathi
+
+🎯 Overall Goal
+
+The web app should feel like a modern, futuristic, space-themed gaming platform with glowing UI elements, smooth animations, and a fun energetic vibe.
