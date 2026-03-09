@@ -37,10 +37,12 @@ export function setupSocketIO(httpServer: Server) {
           messages: [],
           gameState: "lobby",
           currentTurnPlayerId: null,
+          questionAskerPlayerId: null,
           currentAction: null,
           currentQuestion: null,
           turnStartTime: null,
-          turnDuration: 30
+          turnDuration: 30,
+          bottleSpinning: false,
         };
         
         rooms.set(roomId, room);
