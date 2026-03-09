@@ -55,6 +55,12 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </AnimatePresence>
       </main>
+
+      <footer className="absolute bottom-4 w-full flex justify-center z-10">
+        <p className="text-xs text-muted-foreground">
+          Powered by <span className="font-semibold text-primary">Mridul</span>
+        </p>
+      </footer>
     </div>
   );
 }
