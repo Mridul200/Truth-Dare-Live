@@ -1,22 +1,20 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useGame } from "@/hooks/use-game";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PlayerList } from "./player-list";
 import { Mic, MicOff, Video, VideoOff } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useEffect, useState } from "react";
 import { VideoGrid } from "./video-grid";
 import { CircularPlayers } from "./circular-players";
-import { Input } from "@/components/ui/input";
+import { GamePhases } from "./game-phases";
 
 export function GameView() {
-  const { roomState, myPlayerId, isHost, spinBottle, endGame, toggleMedia, askQuestion } = useGame();
+  const { roomState, myPlayerId, spinBottle, endGame, toggleMedia, chooseAction, askQuestion, nextTurn } = useGame();
   const [audioOn, setAudioOn] = useState(false);
   const [videoOn, setVideoOn] = useState(false);
   const [videoStreams] = useState<Map<string, MediaStream>>(new Map());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [questionText, setQuestionText] = useState("");
 
   const handleToggleAudio = async () => {
     if (!audioOn) {
@@ -50,12 +48,6 @@ export function GameView() {
     toggleMedia(!videoOn, audioOn);
   };
 
-  const handleAskQuestion = (action: "truth" | "dare") => {
-    if (questionText.trim()) {
-      askQuestion(action, questionText);
-      setQuestionText("");
-    }
-  };
 
   if (!roomState) return null;
 
@@ -155,82 +147,18 @@ export function GameView() {
         <CircularPlayers 
           roomState={roomState}
           myPlayerId={myPlayerId}
-          isSpinning={roomState.bottleSpinning}
+          isSpinning={roomState.phase === "bottleSpinning"}
           onSpinComplete={() => {}}
         />
       </Card>
 
-      <Card className="glass-card p-8 sm:p-12 border-0 w-full flex flex-col items-center justify-center text-center relative overflow-hidden">
-          
-          <AnimatePresence mode="wait">
-            {!roomState.currentQuestion ? (
-              <motion.div
-                key="asking"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex flex-col items-center w-full gap-6"
-              >
-                <h2 className="text-4xl sm:text-5xl font-display font-bold text-gradient mb-4">
-                  {roomState.questionAskerPlayerId === myPlayerId 
-                    ? "Ask a Question!" 
-                    : `Waiting for ${roomState.players.find(p => p.id === roomState.questionAskerPlayerId)?.name || "player"} to ask...`}
-                </h2>
-
-                {roomState.questionAskerPlayerId === myPlayerId && (
-                  <div className="w-full max-w-lg flex flex-col gap-4">
-                    <Input
-                      placeholder="Type your question..."
-                      value={questionText}
-                      onChange={(e) => setQuestionText(e.target.value)}
-                      className="h-12 rounded-2xl"
-                    />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Button 
-                        className="truth-gradient text-white h-16 rounded-2xl text-2xl font-display font-bold"
-                        onClick={() => handleAskQuestion("truth")}
-                        disabled={!questionText.trim()}
-                      >
-                        TRUTH
-                      </Button>
-                      <Button 
-                        className="dare-gradient text-white h-16 rounded-2xl text-2xl font-display font-bold"
-                        onClick={() => handleAskQuestion("dare")}
-                        disabled={!questionText.trim()}
-                      >
-                        DARE
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="revealed"
-                initial={{ opacity: 0, rotateY: 90 }}
-                animate={{ opacity: 1, rotateY: 0 }}
-                transition={{ type: "spring", damping: 20, stiffness: 100 }}
-                className="flex flex-col items-center w-full max-w-2xl"
-              >
-                <div className={`
-                  px-6 py-2 rounded-full font-display font-bold text-lg mb-8 shadow-lg
-                  ${roomState.currentAction === 'truth' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}
-                `}>
-                  {roomState.currentAction.toUpperCase()}
-                </div>
-                
-                <h3 className="text-3xl sm:text-5xl font-display font-bold leading-tight mb-12 text-gray-900">
-                  "{roomState.currentQuestion}"
-                </h3>
-
-                <p className="text-lg text-muted-foreground font-medium">
-                  <strong>{roomState.players.find(p => p.id === roomState.currentTurnPlayerId)?.name}</strong> is answering!
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </Card>
+      <GamePhases
+        roomState={roomState}
+        myPlayerId={myPlayerId}
+        onChooseAction={chooseAction}
+        onAskQuestion={askQuestion}
+        onNextRound={spinBottle}
+      />
     </div>
   );
 }

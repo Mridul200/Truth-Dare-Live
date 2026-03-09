@@ -36,13 +36,13 @@ export function setupSocketIO(httpServer: Server) {
           players: [player],
           messages: [],
           gameState: "lobby",
+          phase: "bottleSpinning",
           currentTurnPlayerId: null,
           questionAskerPlayerId: null,
           currentAction: null,
           currentQuestion: null,
           turnStartTime: null,
           turnDuration: 30,
-          bottleSpinning: false,
         };
         
         rooms.set(roomId, room);
@@ -79,13 +79,12 @@ export function setupSocketIO(httpServer: Server) {
       if (!room || room.hostId !== info.playerId) return;
 
       room.gameState = "playing";
-      room.bottleSpinning = true;
+      room.phase = "bottleSpinning";
       selectNextPlayer(room);
       io.to(room.roomId).emit("roomUpdate", room);
       setTimeout(() => {
         if (room) {
-          room.bottleSpinning = false;
-          room.questionAskerPlayerId = getRandomPlayer(room, room.currentTurnPlayerId);
+          room.phase = "choosing";
           io.to(room.roomId).emit("roomUpdate", room);
         }
       }, 3000);
@@ -97,18 +96,30 @@ export function setupSocketIO(httpServer: Server) {
       const room = rooms.get(info.roomId);
       if (!room) return;
 
-      room.bottleSpinning = true;
+      room.phase = "bottleSpinning";
       selectNextPlayer(room);
       io.to(room.roomId).emit("roomUpdate", room);
       setTimeout(() => {
         if (room) {
-          room.bottleSpinning = false;
-          room.questionAskerPlayerId = getRandomPlayer(room, room.currentTurnPlayerId);
+          room.phase = "choosing";
           room.currentAction = null;
           room.currentQuestion = null;
           io.to(room.roomId).emit("roomUpdate", room);
         }
       }, 3000);
+    });
+
+    socket.on("chooseAction", (payload) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room || room.currentTurnPlayerId !== info.playerId) return;
+
+      const parsed = wsSchema.send.chooseAction.parse(payload);
+      room.currentAction = parsed.action;
+      room.questionAskerPlayerId = getRandomPlayer(room, room.currentTurnPlayerId);
+      room.phase = "asking";
+      io.to(room.roomId).emit("roomUpdate", room);
     });
 
     socket.on("askQuestion", (payload) => {
@@ -118,8 +129,8 @@ export function setupSocketIO(httpServer: Server) {
       if (!room || room.questionAskerPlayerId !== info.playerId) return;
 
       const parsed = wsSchema.send.askQuestion.parse(payload);
-      room.currentAction = parsed.action;
       room.currentQuestion = parsed.question;
+      room.phase = "answering";
       io.to(room.roomId).emit("roomUpdate", room);
     });
 
@@ -170,6 +181,26 @@ export function setupSocketIO(httpServer: Server) {
           break;
         }
       }
+    });
+
+    socket.on("nextRound", () => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+      const room = rooms.get(info.roomId);
+      if (!room) return;
+
+      room.phase = "bottleSpinning";
+      selectNextPlayer(room);
+      io.to(room.roomId).emit("roomUpdate", room);
+      setTimeout(() => {
+        if (room) {
+          room.phase = "choosing";
+          room.currentAction = null;
+          room.currentQuestion = null;
+          room.questionAskerPlayerId = null;
+          io.to(room.roomId).emit("roomUpdate", room);
+        }
+      }, 3000);
     });
 
     socket.on("endGame", () => {

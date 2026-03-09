@@ -27,6 +27,7 @@ export const messageSchema = z.object({
 export type Message = z.infer<typeof messageSchema>;
 
 export const gameStateSchema = z.enum(["lobby", "playing", "ended"]);
+export const phaseSchema = z.enum(["bottleSpinning", "choosing", "asking", "answering"]);
 
 export const roomStateSchema = z.object({
   roomId: z.string(),
@@ -34,13 +35,13 @@ export const roomStateSchema = z.object({
   players: z.array(playerSchema),
   messages: z.array(messageSchema),
   gameState: gameStateSchema,
+  phase: phaseSchema.default("bottleSpinning"),
   currentTurnPlayerId: z.string().nullable(),
   questionAskerPlayerId: z.string().nullable(),
   currentAction: z.enum(["truth", "dare"]).nullable(),
   currentQuestion: z.string().nullable(),
   turnStartTime: z.number().nullable(),
   turnDuration: z.number().default(30),
-  bottleSpinning: z.boolean().default(false),
 });
 
 export type RoomState = z.infer<typeof roomStateSchema>;
