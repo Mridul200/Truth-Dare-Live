@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { MutableRefObject, createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { type RoomState } from "@shared/schema";
 import { ws as wsConfig } from "@shared/routes";
 import { useToast } from "./use-toast";
@@ -22,6 +22,7 @@ interface GameContextType {
   sendSignal: (targetId: string, signal: any) => void;
   spinBottle: () => void;
   askQuestion: (question: string) => void;
+  socketRef: MutableRefObject<Socket | null>;
 }
 
 const GameContext = createContext<GameContextType | null>(null);
@@ -156,6 +157,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         sendSignal,
         spinBottle,
         askQuestion,
+        socketRef,
       }}
     >
       {children}

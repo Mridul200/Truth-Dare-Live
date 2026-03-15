@@ -1,51 +1,118 @@
 import { motion } from "framer-motion";
 import { useGame } from "@/hooks/use-game";
+import { useWebRTC } from "@/hooks/use-webrtc";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, Rocket, X } from "lucide-react";
 import confetti from "canvas-confetti";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { VideoGrid } from "./video-grid";
 import { CircularPlayers } from "./circular-players";
 import { GamePhases } from "./game-phases";
+import { useToast } from "@/hooks/use-toast";
 
 export function GameView() {
-  const { roomState, myPlayerId, spinBottle, endGame, toggleMedia, chooseAction, askQuestion, nextTurn } = useGame();
+  const {
+    roomState,
+    myPlayerId,
+    spinBottle,
+    endGame,
+    toggleMedia,
+    chooseAction,
+    askQuestion,
+    socketRef,
+  } = useGame();
+
+  const { toast } = useToast();
   const [audioOn, setAudioOn] = useState(false);
   const [videoOn, setVideoOn] = useState(false);
-  const [videoStreams] = useState<Map<string, MediaStream>>(new Map());
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const players = roomState?.players ?? [];
+
+  const { remoteStreams } = useWebRTC({
+    socket: socketRef.current,
+    myPlayerId,
+    players,
+    localStream,
+  });
+
+  // Keep ref in sync so WebRTC hook can access latest stream without stale closure
+  useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
+
+  const applyStream = (stream: MediaStream | null) => {
+    // Stop old tracks before replacing
+    if (localStreamRef.current && localStreamRef.current !== stream) {
+      localStreamRef.current.getTracks().forEach(t => t.stop());
+    }
+    setLocalStream(stream);
+  };
 
   const handleToggleAudio = async () => {
-    if (!audioOn) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        setLocalStream(stream);
-        setAudioOn(true);
-      } catch (err) {
-        console.error("Failed to access microphone:", err);
-      }
-    } else {
-      localStream?.getAudioTracks().forEach(t => t.stop());
+    const nextAudio = !audioOn;
+    const nextVideo = videoOn;
+
+    if (!nextAudio && !nextVideo) {
+      // Turn everything off
+      applyStream(null);
       setAudioOn(false);
+      toggleMedia(false, false);
+      return;
     }
-    toggleMedia(videoOn, !audioOn);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: nextAudio,
+        video: nextVideo ? { width: 320, height: 240 } : false,
+      });
+      applyStream(stream);
+      setAudioOn(nextAudio);
+      toggleMedia(nextVideo, nextAudio);
+    } catch (err: any) {
+      toast({
+        title: "Microphone Error",
+        description: err.message || "Could not access microphone. Check browser permissions.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleToggleVideo = async () => {
-    if (!videoOn) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioOn, video: true });
-        setLocalStream(stream);
-        setVideoOn(true);
-      } catch (err) {
-        console.error("Failed to access camera:", err);
-      }
-    } else {
-      localStream?.getVideoTracks().forEach(t => t.stop());
+    const nextAudio = audioOn;
+    const nextVideo = !videoOn;
+
+    if (!nextAudio && !nextVideo) {
+      applyStream(null);
       setVideoOn(false);
+      toggleMedia(false, false);
+      return;
     }
-    toggleMedia(!videoOn, audioOn);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: nextAudio,
+        video: nextVideo ? { width: 320, height: 240 } : false,
+      });
+      applyStream(stream);
+      setVideoOn(nextVideo);
+      toggleMedia(nextVideo, nextAudio);
+    } catch (err: any) {
+      toast({
+        title: "Camera Error",
+        description: err.message || "Could not access camera. Check browser permissions.",
+        variant: "destructive",
+      });
+    }
   };
+
+  // Stop local stream when leaving
+  useEffect(() => {
+    return () => {
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
 
   if (!roomState) return null;
 
@@ -53,10 +120,7 @@ export function GameView() {
     return (
       <div className="w-full max-w-2xl mx-auto py-12 px-4">
         <div className="neon-card rounded-3xl p-12 text-center overflow-hidden relative">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <div className="text-6xl mb-6">🎉</div>
             <h2
               className="text-5xl font-display font-black mb-6"
@@ -70,9 +134,8 @@ export function GameView() {
               Game Over!
             </h2>
             <p className="text-base mb-12" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Thanks for playing! We'd love to hear your thoughts.
+              Thanks for playing! Hope you had a blast.
             </p>
-
             <Button
               size="lg"
               className="w-full max-w-md h-16 rounded-2xl text-xl font-bold border-0 text-white"
@@ -80,14 +143,10 @@ export function GameView() {
                 background: "linear-gradient(135deg, #8A2BE2, #FF2E9F)",
                 boxShadow: "0 0 30px rgba(138, 43, 226, 0.5)",
               }}
-              onClick={() => window.open("https://forms.google.com", "_blank")}
+              onClick={() => window.location.href = "/"}
             >
-              Share Your Feedback
+              Play Again
             </Button>
-
-            <p className="mt-8 text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-              Your feedback helps us make the game even better!
-            </p>
           </motion.div>
         </div>
       </div>
@@ -107,42 +166,72 @@ export function GameView() {
     }
   }, [roomState.currentQuestion, roomState.currentAction]);
 
+  const hasAnyMedia = localStream || remoteStreams.size > 0;
+  const playerMap = new Map(roomState.players.map(p => [p.id, p.name]));
+
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 items-center">
       {/* Top controls */}
-      <div className="w-full flex justify-between items-center gap-3">
+      <div className="w-full flex justify-between items-center gap-3 flex-wrap">
         <div className="flex gap-2">
           <Button
             data-testid="button-toggle-audio"
             size="icon"
-            className="rounded-full border text-white w-10 h-10"
+            className="rounded-full border text-white w-11 h-11 transition-all"
             style={{
               background: audioOn ? "rgba(0, 194, 255, 0.2)" : "rgba(255,255,255,0.06)",
-              borderColor: audioOn ? "rgba(0, 194, 255, 0.5)" : "rgba(255,255,255,0.1)",
-              boxShadow: audioOn ? "0 0 12px rgba(0, 194, 255, 0.4)" : "none",
+              borderColor: audioOn ? "#00C2FF" : "rgba(255,255,255,0.12)",
+              boxShadow: audioOn ? "0 0 15px rgba(0, 194, 255, 0.5)" : "none",
             }}
             onClick={handleToggleAudio}
+            title={audioOn ? "Mute microphone" : "Enable microphone"}
           >
-            {audioOn ? <Mic className="w-4 h-4" style={{ color: "#00C2FF" }} /> : <MicOff className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />}
+            {audioOn
+              ? <Mic className="w-4 h-4" style={{ color: "#00C2FF" }} />
+              : <MicOff className="w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+            }
           </Button>
+
           <Button
             data-testid="button-toggle-video"
             size="icon"
-            className="rounded-full border text-white w-10 h-10"
+            className="rounded-full border text-white w-11 h-11 transition-all"
             style={{
               background: videoOn ? "rgba(138, 43, 226, 0.2)" : "rgba(255,255,255,0.06)",
-              borderColor: videoOn ? "rgba(138, 43, 226, 0.5)" : "rgba(255,255,255,0.1)",
-              boxShadow: videoOn ? "0 0 12px rgba(138, 43, 226, 0.4)" : "none",
+              borderColor: videoOn ? "#8A2BE2" : "rgba(255,255,255,0.12)",
+              boxShadow: videoOn ? "0 0 15px rgba(138, 43, 226, 0.5)" : "none",
             }}
             onClick={handleToggleVideo}
+            title={videoOn ? "Turn off camera" : "Enable camera"}
           >
-            {videoOn ? <Video className="w-4 h-4" style={{ color: "#8A2BE2" }} /> : <VideoOff className="w-4 h-4" style={{ color: "rgba(255,255,255,0.4)" }} />}
+            {videoOn
+              ? <Video className="w-4 h-4" style={{ color: "#8A2BE2" }} />
+              : <VideoOff className="w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+            }
           </Button>
+
+          {/* Live indicator */}
+          {hasAnyMedia && (
+            <div
+              className="flex items-center gap-1.5 px-3 rounded-full border text-xs font-medium h-11"
+              style={{
+                background: "rgba(0, 255, 100, 0.08)",
+                borderColor: "rgba(0, 255, 100, 0.3)",
+                color: "#00ff80",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              {remoteStreams.size > 0
+                ? `${remoteStreams.size + 1} connected`
+                : "Live"
+              }
+            </div>
+          )}
         </div>
 
         <Button
           data-testid="button-spin"
-          className="border-0 text-white font-bold rounded-xl px-5"
+          className="border-0 text-white font-bold rounded-xl px-5 h-11"
           style={{
             background: "linear-gradient(135deg, #8A2BE2, #00C2FF)",
             boxShadow: "0 0 15px rgba(138, 43, 226, 0.4)",
@@ -156,11 +245,8 @@ export function GameView() {
         <Button
           data-testid="button-end-game"
           variant="ghost"
-          className="rounded-xl border font-semibold"
-          style={{
-            borderColor: "rgba(255, 46, 159, 0.3)",
-            color: "#FF2E9F",
-          }}
+          className="rounded-xl border font-semibold h-11"
+          style={{ borderColor: "rgba(255, 46, 159, 0.3)", color: "#FF2E9F" }}
           onClick={endGame}
         >
           <X className="w-4 h-4 mr-1" />
@@ -168,14 +254,14 @@ export function GameView() {
         </Button>
       </div>
 
-      {/* Video grid */}
-      {(localStream || videoStreams.size > 0) && (
+      {/* Video/audio grid — only shown when media is active */}
+      {hasAnyMedia && (
         <div className="neon-card rounded-3xl p-4 w-full">
           <VideoGrid
-            localStream={localStream}
-            remoteStreams={videoStreams}
-            playerMap={new Map(roomState.players.map(p => [p.id, p.name]))}
-            myPlayerId={myPlayerId}
+            localStream={localStream ?? undefined}
+            remoteStreams={remoteStreams}
+            playerMap={playerMap}
+            myPlayerId={myPlayerId ?? undefined}
           />
         </div>
       )}
@@ -197,7 +283,7 @@ export function GameView() {
         />
       </div>
 
-      {/* Phase UI */}
+      {/* Phase-specific UI */}
       <GamePhases
         roomState={roomState}
         myPlayerId={myPlayerId}
